@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:border="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <title>聊天页面</title>
+    <style>
+
+        #message {
+            margin-top: 40px;
+            border: 1px solid gray;
+            padding: 20px;
+        }
+    </style>
+    <script src="https://cdn.bootcss.com/jquery/3.4.1/jquery.js"></script>
+    <script>
+        var websocket = null;
+        function connectWebSocket() {
+            //判断当前浏览器是否支持WebSocket
+            //判断当前浏览器是否支持WebSocket
+            if ('WebSocket' in window) {
+                var userName = document.getElementById('nickName').value;
+                console.log("ws://localhost:80/websocket/" + userName)
+                websocket = new WebSocket("ws://localhost:80/websocket/" + userName);
+            } else {
+                alert('当前浏览器不支持websocket');
+            }
+            //连接成功建立的回调方法
+            websocket.onopen = function (event) {
+                setMessageInnerHTML("Loc MSG: 成功建立连接");
+            }
+
+            //连接发生错误的回调方法
+            websocket.onerror = function () {
+                setMessageInnerHTML("error");
+            };
+
+            //接收到消息的回调方法
+            websocket.onmessage = function (event) {
+                // setMessageInnerHTML(event.data);
+                var received_msg = event.data;
+                console.log("数据已接收:" + received_msg);
+                var obj = JSON.parse(received_msg);
+                console.log("可以解析成json:" + obj.messageType);
+                //1代表上线 2代表下线 3代表在线名单 4代表普通消息
+                if (obj.messageType == 1) {
+                    //把名称放入到selection当中供选择
+                    var onlineName = obj.username;
+                    var option = "<option>" + onlineName + "</option>";
+                    $("#onLineUser").append(option);
+                    setMessageInnerHTML(onlineName + "上线了");
+                }
+                else if (obj.messageType == 2) {
+                    $("#onLineUser").empty();
+                    var onlineName = obj.onlineUsers;
+                    var offlineName = obj.username;
+                    var option = "<option>" + "--所有--" + "</option>";
+                    for (var i = 0; i < onlineName.length; i++) {
+                        if (!(onlineName[i] == document.getElementById('nickName').value)) {
+                            option += "<option>" + onlineName[i] + "</option>"
+                        }
+                        $("#onLineUser").append(option);
+
+                        setMessageInnerHTML(offlineName + "下线了");
+                    }
+                }
+                else if (obj.messageType == 3) {
+                    var onlineName = obj.onlineUsers;
+                    var option = null;
+                    for (var i = 0; i < onlineName.length; i++) {
+                        if (!(onlineName[i] == document.getElementById('nickName').value)) {
+                            console.log('啦啦啦')
+                            option += "<option>" + onlineName[i] + "</option>"
+                        }
+                    }
+                    $("#onLineUser").append(option);
+                    console.log("获取了在线的名单" + onlineName.toString());
+                }
+                else {
+                    setMessageInnerHTML(obj.username + "对" + obj.toUser + "说：" + obj.text);
+                }
+
+                //连接关闭的回调方法
+                websocket.onclose = function () {
+                    setMessageInnerHTML("Loc MSG:关闭连接");
+                }
+
+                //监听窗口关闭事件，当窗口关闭时，主动去关闭websocket连接，防止连接还没断开就关闭窗口，server端会抛异常。
+                window.onbeforeunload = function () {
+                    websocket.close();
+                }
+            }
+        }
+
+
+        //将消息显示在网页上
+        function setMessageInnerHTML(innerHTML) {
+            document.getElementById('message').innerHTML += innerHTML + '<br/>';
+        }
+
+        //关闭连接
+        function closeWebSocket() {
+            websocket.close();
+        }
+
+        //发送消息
+        function send() {
+
+            var selectText = $("#onLineUser").find("option:selected").text();
+            if (selectText == "--所有--") {
+                selectText = "All";
+            }
+            else {
+                setMessageInnerHTML(document.getElementById('nickName').value + "对" + selectText + "说：" + $("#text").val());
+            }
+            var message = {
+                "message": document.getElementById('text').value,
+                "userName": document.getElementById('nickName').value,
+                "toUser": selectText
+            };
+            websocket.send(JSON.stringify(message));
+            $("#text").val("");
+            // var message = document.getElementById('text').value;
+            // websocket.send(message);
+        }
+    </script>
+</head>
+<body>
+<button onclick="connectWebSocket()">登陆</button>
+<button onclick="closeWebSocket()">退出</button>
+用户名：<input id="nickName" type="text" />
+<hr />
+<br />
+消息：<input id="text" type="text" />
+发送给：<select id="onLineUser">
+    <option>--所有--</option>
+</select>
+<button onclick="send()">发送消息</button>
+<div id="message"></div>
+</body>
+</html>
